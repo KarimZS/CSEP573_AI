@@ -339,7 +339,6 @@ class CornersProblem(search.SearchProblem):
             if not self.walls[nextx][nexty]:
                 nextCornersVisited = cornersVisited[:]
                 if (nextx, nexty) in self.corners and ((nextx,nexty) not in cornersVisited):
-                    #if(nextx,nexty) not in cornersVisited:
                     nextCornersVisited.append((nextx,nexty))
                 nstate = ((nextx,nexty),nextCornersVisited)
                 successors.append((nstate,action,1))
@@ -494,9 +493,7 @@ def foodHeuristic(state, problem):
     if problem.isGoalState(state):
         return 0
 
-    # Find real distances between position and all of the food #
     max_distance = 0
-
     for food in foodGrid.asList():
         loc_dist = mazeDistance(position,food,problem.startingGameState)
         if loc_dist > max_distance:
