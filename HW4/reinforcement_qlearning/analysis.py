@@ -17,9 +17,10 @@
 ######################
 
 def question8():
-    answerEpsilon = None
-    answerLearningRate = None
-    return answerEpsilon, answerLearningRate
+    return 'NOT POSSIBLE'
+    #answerEpsilon = .2    #1 is random
+    #answerLearningRate = 1/50
+    #return answerEpsilon, answerLearningRate
     # If not possible, return 'NOT POSSIBLE'
 
 if __name__ == '__main__':
