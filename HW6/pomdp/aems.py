@@ -34,7 +34,7 @@ class AEMS2(OnlineSolver):
         """
         *****Your code
         """
-        maxError = -999999
+        maxError = float("-inf")
         maxErrorNode = None
         for i in range(len(self.frontier)):
             if self.frontier[i].error > maxError:
@@ -43,6 +43,7 @@ class AEMS2(OnlineSolver):
 
         if maxError < self.precision:
             return False
+
         self.frontier.remove(maxErrorNode)
 
         for action in range(len(self.pomdp.actions)):
@@ -66,15 +67,17 @@ class AEMS2(OnlineSolver):
                 newBeliefNode.observationIndex = observation
 
                 newBeliefNode.lowerbound = self.lb_solver.getValue(newBelief)
-                newBeliefNode.upperbound = self.ub_solver.getValue(newBelief)
+                upperActionAndValue = self.ub_solver.getActionAndValue(newBelief)
+                newBeliefNode.bestActionIndex = upperActionAndValue[0]
+                newBeliefNode.upperbound = upperActionAndValue[1]
 
-                newBeliefNode.bestActionIndex = self.ub_solver.chooseAction(newBelief)
+                newBeliefNode.parent=actionNode
                 newBeliefNode.updateProb()
 
                 newBeliefNode.updateError()
-                newBeliefNode.parent=actionNode
                 actionNode.children.append(newBeliefNode)
-                self.frontier.append(newBeliefNode)
+                if maxErrorNode.bestActionIndex == action:
+                    self.frontier.append(newBeliefNode)
 
             actionNode.updateBounds()
         self.backprop(maxErrorNode)
@@ -111,7 +114,7 @@ class AEMS2(OnlineSolver):
             break
 
         if newRootNode == None:#the action we took was on an unexpanded belief
-            belief = np.matmul(self.root.Belief , self.pomdp.T[action, :, :])
+            belief = np.matmul(self.root.belief , self.pomdp.T[action, :, :])
             belief = belief * self.pomdp.O[action, :, observation]
             total = np.sum(belief)
             if(total!= 0):
@@ -121,28 +124,24 @@ class AEMS2(OnlineSolver):
             beliefNode.observation = self.computeObservation(observation, self.root.belief, action)
             beliefNode.observationIndex= observation
             beliefNode.lowerbound= self.lb_solver.getValue(belief)
-            beliefNode.upperbound = self.ub_solver.getValue(belief)
-            beliefNode.bestActionIndex = self.ub_solver.chooseAction(belief)
+            upperActionAndValue = self.ub_solver.getActionAndValue(belief)
+            beliefNode.bestActionIndex = upperActionAndValue[0]
+            beliefNode.upperbound = upperActionAndValue[1]
             newRootNode= beliefNode
         newRootNode.parent = None
         beliefNode.depth = 0
         beliefNode.prob = 1
-        self.updateChildProbAndDepth(newRootNode)
         newRootNode.updateError()
         self.root = newRootNode
         self.frontier = []
         self.recreateFrontier(self.root)
 
-    def updateChildProbAndDepth(self,root):
-        root.updateProb()
-        for child in root.children:
-            self.updateChildProbAndDepth(child)
-
-
     def recreateFrontier(self, root):
+        root.updateProb()
         if len(root.children) == 0:
             self.frontier.append(root)
         else:
+            root.children[root.bestActionIndex].updateProb()
             for child in root.children[root.bestActionIndex].children:
                 self.recreateFrontier(child)
 
