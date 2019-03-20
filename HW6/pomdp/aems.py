@@ -14,11 +14,12 @@ class AEMS2(OnlineSolver):
         self.lb_solver = lb_solver
         self.ub_solver = ub_solver
         self.root = OrNode(pomdp.prior)
-        self.root.upperbound = self.ub_solver.getValue(pomdp.prior)
         self.root.lowerbound = self.lb_solver.getValue(pomdp.prior)
+        upperActionAndValue = self.ub_solver.getActionAndValue(pomdp.prior)
+        self.root.bestActionIndex = upperActionAndValue[0]
+        self.root.upperbound = upperActionAndValue[1]
         self.root.parent = None
         self.root.depth = 0
-        self.root.bestActionIndex = self.ub_solver.chooseAction(pomdp.prior)
         self.root.prob = 1
         self.root.discount = pomdp.discount
         self.root.updateError()
@@ -76,8 +77,7 @@ class AEMS2(OnlineSolver):
 
                 newBeliefNode.updateError()
                 actionNode.children.append(newBeliefNode)
-                if maxErrorNode.bestActionIndex == action:
-                    self.frontier.append(newBeliefNode)
+                self.frontier.append(newBeliefNode)
 
             actionNode.updateBounds()
         self.backprop(maxErrorNode)
@@ -90,7 +90,7 @@ class AEMS2(OnlineSolver):
         *****Your code
         """
         maxAction = 0 #default if node isnt expanded
-        maxUpper = -999999
+        maxUpper = float("-inf")
         for actionNode in self.root.children:
             if actionNode.upperbound>maxUpper:
                 maxUpper =  actionNode.upperbound
@@ -103,15 +103,12 @@ class AEMS2(OnlineSolver):
         """
         newRootNode = None
         for actionNode in self.root.children:
-            if actionNode.action != action:
-                continue
-
-            for beliefNode in actionNode.children:
-                if beliefNode.observationIndex != observation:
-                    continue
-                newRootNode = beliefNode
+            if actionNode.action == action:
+                for beliefNode in actionNode.children:
+                    if beliefNode.observationIndex == observation:
+                        newRootNode = beliefNode
+                        break
                 break
-            break
 
         if newRootNode == None:#the action we took was on an unexpanded belief
             belief = np.matmul(self.root.belief , self.pomdp.T[action, :, :])
@@ -129,8 +126,8 @@ class AEMS2(OnlineSolver):
             beliefNode.upperbound = upperActionAndValue[1]
             newRootNode= beliefNode
         newRootNode.parent = None
-        beliefNode.depth = 0
-        beliefNode.prob = 1
+        newRootNode.depth = 0
+        newRootNode.prob = 1
         newRootNode.updateError()
         self.root = newRootNode
         self.frontier = []
@@ -141,8 +138,7 @@ class AEMS2(OnlineSolver):
         if len(root.children) == 0:
             self.frontier.append(root)
         else:
-            root.children[root.bestActionIndex].updateProb()
-            for child in root.children[root.bestActionIndex].children:
+            for child in root.children:
                 self.recreateFrontier(child)
 
     def backprop(self,node):
@@ -150,8 +146,9 @@ class AEMS2(OnlineSolver):
         while current != None:
             updated = current.updateBounds()
             if updated==False:
-                return
-            current = current.parent
+                break
+            else:
+                current = current.parent
 
     def computeReward(self,pomdp):
         temp = np.multiply(pomdp.R[:,:,:,0],pomdp.T)
@@ -179,14 +176,19 @@ class Node():
         self.lowerbound = None
         self.children = []
         self.discount = None
-        self.depth = None
-        self.prob = None
+        self.depth = 0
+        self.prob = 1
+    def updateBounds(self):
+        raise NotImplementedError("Subclass must implement abstract method")  
+    def updateProb(self):
+        raise NotImplementedError("Subclass must implement abstract method")  
+
 
 class AndNode(Node):
     def __init__(self,action):
         super(AndNode,self).__init__()
         self.action = action
-        self.reward = None
+        self.reward = 0
 
     def updateBounds(self):
         currentLower = self.lowerbound
@@ -202,9 +204,9 @@ class AndNode(Node):
         self.upperbound += self.reward
         self.lowerbound += self.reward
         if currentLower==self.lowerbound and currentUpper==self.upperbound:
-            return True
-        else:
             return False
+        else:
+            return True
     def updateProb(self):
         if self.parent.bestActionIndex is self.action:
             self.prob = self.parent.prob
@@ -218,27 +220,24 @@ class OrNode(Node):
         self.belief = belief
         self.error = None
         self.observation = None
-        self.observationIndex = None
-        self.bestActionIndex = None
+        self.observationIndex = 0
+        self.bestActionIndex = 0
 
     def updateBounds(self):
         currentLower = self.lowerbound
         currentUpper = self.upperbound
-        self.lowerbound = -999999
-        self.upperbound = -999999
+        self.lowerbound = float("-inf")
+        self.upperbound = float("-inf")
         for action in self.children:
             self.lowerbound = max(self.lowerbound, action.lowerbound)
             self.upperbound = max(self.upperbound, action.upperbound)
         if currentLower==self.lowerbound and currentUpper==self.upperbound:
-            return True
-        else:
             return False
+        else:
+            return True
     def updateProb(self):
         if self.parent is not None:
             self.prob = self.parent.prob*self.observation
             self.depth = self.parent.depth + 1
-        else:
-            self.depth = 0
-            self.prob = 1
     def updateError(self):
         self.error = (self.discount**self.depth) * self.prob * (self.upperbound - self.lowerbound)

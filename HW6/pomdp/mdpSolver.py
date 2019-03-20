@@ -19,7 +19,7 @@ class QMDP(OfflineSolver):
         self.qvalues = np.zeros((len(self.states), len(self.actions)))
         self.precision = precision
         self.discount = pomdp.discount
-        self.T = pomdp.T.copy()
+        self.T = pomdp.T
         self.reward = self.computeReward(pomdp)
         self.runValueIteration()
 
