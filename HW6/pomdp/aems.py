@@ -178,11 +178,6 @@ class Node():
         self.discount = None
         self.depth = 0
         self.prob = 1
-    def updateBounds(self):
-        raise NotImplementedError("Subclass must implement abstract method")  
-    def updateProb(self):
-        raise NotImplementedError("Subclass must implement abstract method")  
-
 
 class AndNode(Node):
     def __init__(self,action):
@@ -229,8 +224,11 @@ class OrNode(Node):
         self.lowerbound = float("-inf")
         self.upperbound = float("-inf")
         for action in self.children:
-            self.lowerbound = max(self.lowerbound, action.lowerbound)
-            self.upperbound = max(self.upperbound, action.upperbound)
+            if action.lowerbound > self.lowerbound:
+                self.lowerbound = action.lowerbound
+            if action.upperbound > self.upperbound:
+                self.upperbound = action.upperbound
+                self.bestActionIndex = action.action
         if currentLower==self.lowerbound and currentUpper==self.upperbound:
             return False
         else:
