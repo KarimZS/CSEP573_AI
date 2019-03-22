@@ -48,7 +48,7 @@ class QMDP(OfflineSolver):
     Add any function, data structure, etc that you want
     """
     def runValueIteration(self):
-        while True:
+        """while True:
             tempQ = np.dot(self.T,self.values)*self.discount
             tempQ = np.add(tempQ,self.reward)
             iterationQvalues = np.swapaxes(tempQ,0,1)
@@ -62,7 +62,35 @@ class QMDP(OfflineSolver):
             self.values = iterationValues
             self.qvalues = iterationQvalues
             if maxDiff <= self.precision:
+                break"""
+
+        while True:
+            iterationValues = np.zeros(len(self.states))
+            iterationQvalues = np.zeros((len(self.states), len(self.actions)))
+            for state in range(len(self.states)):
+                maxValue = None
+                for action in range(len(self.actions)):
+                    tempQ = self.computeQValueFromValues(state, action)
+                    iterationQvalues[state,action] = tempQ
+                    if maxValue is None or tempQ>=maxValue:
+                        maxValue = tempQ
+                iterationValues[state] = maxValue
+
+            diff = []
+            for i in range(len(self.values)):
+                diff.append(abs(self.values[i] - iterationValues[i]))
+            maxDiff = max(diff)
+
+            self.values = iterationValues
+            self.qvalues = iterationQvalues
+            if maxDiff <= self.precision:
                 break
+
+
+    def computeQValueFromValues(self, state, action):
+        q = np.dot(self.T[action, state, :], self.values)
+        return q * self.discount + self.reward[action, state]
+
 
     def computeReward(self, pomdp):
         temp = np.multiply(pomdp.R[:,:,:,0],pomdp.T)
@@ -76,19 +104,18 @@ class MinMDP(OfflineSolver):
         ***Your code 
         Remember this is an offline solver, so compute the policy here
         """
-        self.R = pomdp.R
         self.actions = pomdp.actions
         self.discount = pomdp.discount
         self.reward = self.computeReward(pomdp)
+        self.rmin = np.min(pomdp.R)
     
     def getValue(self, cur_belief):
         """
         ***Your code
         """
-        rmin = np.min(self.R)
         actionValue = np.dot(cur_belief, self.reward)
         maxValue =  np.max(actionValue)
-        return maxValue + (self.discount / (1-self.discount))* rmin
+        return maxValue + (self.discount / (1-self.discount))* self.rmin
 
 
     def chooseAction(self, cur_belief):
